@@ -1,5 +1,9 @@
 # Post-Mortem: Floor 5 Incident (2026-02-10)
 
+## Incident Map
+
+![Floor 5 Incident Map](assets/floor-5-incident-map.png)
+
 ## Summary
 
 On February 10th at 14:32 UTC, the Aurora Platform's stream processor encountered a catastrophic failure when attempting to ingest a previously unseen payload type. The incident lasted approximately 3 hours and affected all downstream consumers. No data was permanently lost, though several team members reported feeling drained.
@@ -17,6 +21,27 @@ On February 10th at 14:32 UTC, the Aurora Platform's stream processor encountere
 | 16:20 | Team Kabru offers to take over incident command. Offer is politely declined |
 | 17:05 | Hotfix deployed: malformed events are routed to DLQ with a new Flink side-output |
 | 17:30 | All systems nominal. Backfill of DLQ events begins |
+
+## Incident Flow
+
+The following diagram illustrates how the chimera payload propagated through the system and how the party — *team* — contained it.
+
+```mermaid
+flowchart TD
+    A["🏚️ inventory-sync-legacy<br/>(Config change: 50 → 2,000 evt/min)"] -->|"Chimera payloads<br/>(deprecated v1 + v1.5 hybrid)"| B["📜 raw-events-prod<br/>(Kafka Topic)"]
+    B --> C{"🔥 event-transform-v2<br/>(Flink Job)"}
+    C -->|"Valid v2 events"| D["✅ Downstream Consumers"]
+    C -->|"UnknownSchemaException<br/>⚠️ Back-pressure cascade"| E["💀 Job Failure<br/>(14:32 UTC)"]
+    E -->|"Chilchuck detects the trap"| F["🔔 Alert Fired<br/>(14:35 UTC)"]
+    F -->|"Senshi provisions DLQ:<br/>'Nothing should go to waste'"| G["🍲 Dead-Letter Queue<br/>(Flink Side-Output)"]
+    C -->|"Hotfix deployed (17:05)"| G
+    G -->|"Backfill & reprocess"| D
+
+    style A fill:#8B4513,stroke:#D2691E,color:#FFF
+    style E fill:#8B0000,stroke:#FF4500,color:#FFF
+    style G fill:#2E8B57,stroke:#90EE90,color:#FFF
+    style D fill:#1B4332,stroke:#52B788,color:#FFF
+```
 
 ## Root Cause
 
